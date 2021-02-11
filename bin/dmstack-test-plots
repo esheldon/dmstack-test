@@ -1,0 +1,164 @@
+#!/usr/bin/env python
+
+import numpy as np
+import hickory
+import fitsio
+import esutil as eu
+from dmstack_test.util import Namer
+
+MODELS = [
+    'psf',
+    'cmodel',
+    # 'cmodel_exp',
+    # 'cmodel_dev',
+    'bdf',
+    'exp',
+    'dev',
+]
+
+
+def get_args():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--flist', nargs='+', required=True)
+    parser.add_argument('--output', required=True)
+    return parser.parse_args()
+
+
+def calc_model_fracdiff(*, truth, data, model, fdiff_struct):
+
+    n = Namer(front=model)
+    w, = np.where(data[n('flags')] == 0)
+
+    true_imag = truth['true_imag']
+    true_flux = 10.0**((true_imag - 30)/(-2.5))
+
+    flux = data[n('flux')][w]
+
+    flux_mean, flux_sig, flux_err, ind = eu.stat.sigma_clip(
+        flux, get_indices=True, get_err=True,
+    )
+    fdiff_struct[n('fracdiff')] = flux_mean/true_flux - 1
+    fdiff_struct[n('fracdiff_err')] = flux_err/true_flux
+
+    predicted_err = data[n('flux_err')][w[ind]].mean()
+    fdiff_struct[n('err_fracdiff')] = predicted_err / flux_sig - 1
+
+    fdiff_struct[n('s2n')] = flux_mean/flux_sig
+
+
+def make_fracdiff_struct(data):
+    dt = []
+    for model in MODELS:
+        n = Namer(front=model)
+        if n('flags') in data.dtype.names:
+            dt += [
+                (n('s2n'), 'f8'),
+                (n('fracdiff'), 'f8'),
+                (n('fracdiff_err'), 'f8'),
+                (n('err_fracdiff'), 'f8'),
+            ]
+
+    return np.zeros(1, dtype=dt)
+
+
+def get_fracdiff(*, truth, data):
+    fdiff_struct = make_fracdiff_struct(data)
+    for model in MODELS:
+        n = Namer(front=model)
+        if n('flags') in data.dtype.names:
+            calc_model_fracdiff(
+                truth=truth,
+                data=data,
+                model=model,
+                fdiff_struct=fdiff_struct,
+            )
+
+    return fdiff_struct
+
+
+def do_fracdiff_plots(*, plt, fdiff_struct):
+    plt.set(
+        ylim=(-0.40, 0.10),
+        xlabel='PSF S/N',
+        ylabel=r'$\Delta F/F$',
+    )
+    plt.axhline(0, color='black')
+
+    for model in MODELS:
+        n = Namer(front=model)
+        if n('s2n') in fdiff_struct.dtype.names:
+            label = r'$\mathrm{%s}$' % model.replace('_', r'\_')
+
+            plt.errorbar(
+                fdiff_struct['psf_s2n'],
+                fdiff_struct[n('fracdiff')],
+                fdiff_struct[n('fracdiff_err')],
+                linestyle='-',
+                label=label,
+            )
+
+    plt.legend()
+
+
+def do_err_fracdiff_plots(*, plt, fdiff_struct):
+    plt.set(
+        ylim=(-0.8, 0.40),
+        xlabel='PSF S/N',
+        ylabel=r'$\Delta \sigma_{F}/\sigma_{F}$',
+    )
+    plt.axhline(0, color='black')
+    for model in MODELS:
+
+        n = Namer(front=model)
+        if n('s2n') in fdiff_struct.dtype.names:
+
+            plt.plot(
+                fdiff_struct['psf_s2n'],
+                fdiff_struct[n('err_fracdiff')],
+                linestyle='-',
+                label=r'$\mathrm{%s}$' % model.replace('_', r'\_'),
+            )
+
+    plt.legend()
+
+
+def main():
+    args = get_args()
+
+    tab = hickory.Table(
+        figsize=(8, 8),
+        nrows=2,
+    )
+
+    fdiff_list = []
+    for fname in args.flist:
+        with fitsio.FITS(fname) as fits:
+            truth = fits['truth'].read()
+            data = fits['model_fits'].read()
+
+            tfdiff_struct = get_fracdiff(truth=truth, data=data)
+            fdiff_list.append(tfdiff_struct)
+
+    if 'gal_type' in truth.dtype.names:
+        gal_type = truth['gal_type'][0]
+    else:
+        gal_type = 'dev'
+
+    tab.suptitle(
+        '%s objects, hlr=%g arcsec' % (gal_type, truth['true_hlr'][0])
+    )
+
+    fdiff_struct = eu.numpy_util.combine_arrlist(fdiff_list)
+    s = fdiff_struct['psf_s2n'].argsort()
+    fdiff_struct = fdiff_struct[s]
+
+    do_fracdiff_plots(plt=tab[0], fdiff_struct=fdiff_struct)
+    do_err_fracdiff_plots(plt=tab[1], fdiff_struct=fdiff_struct)
+
+    print('writing:', args.output)
+    tab.savefig(args.output)
+
+
+if __name__ == '__main__':
+    main()

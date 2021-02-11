@@ -1,0 +1,39 @@
+#!/usr/bin/env python
+
+import dmstack_test
+
+
+def get_args():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--seed', type=int, required=True)
+    parser.add_argument('--output', required=True)
+    parser.add_argument('--ntrial', type=int, default=1)
+
+    parser.add_argument('--gal-type', default='dev')
+    parser.add_argument('--gal-imag', type=float, default=23)
+    parser.add_argument('--gal-hlr', type=float, default=0.5)
+
+    parser.add_argument('--ngmix-model', default='bdf')
+
+    parser.add_argument('--show', action='store_true')
+
+    return parser.parse_args()
+
+
+def main():
+    args = get_args()
+    dmstack_test.tester.go(
+        seed=args.seed,
+        ngmix_model=args.ngmix_model,
+        gal_type=args.gal_type,
+        gal_imag=args.gal_imag,
+        gal_hlr=args.gal_hlr,
+        ntrial=args.ntrial,
+        output=args.output,
+        show=args.show,
+    )
+
+
+if __name__ == '__main__':
+    main()
