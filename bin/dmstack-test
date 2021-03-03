@@ -16,6 +16,8 @@ def get_args():
 
     parser.add_argument('--ngmix-model', default='bdf')
 
+    parser.add_argument('--layout', default='grid')
+
     parser.add_argument('--show', action='store_true')
 
     return parser.parse_args()
@@ -26,6 +28,7 @@ def main():
     dmstack_test.tester.go(
         seed=args.seed,
         ngmix_model=args.ngmix_model,
+        layout=args.layout,
         gal_type=args.gal_type,
         gal_imag=args.gal_imag,
         gal_hlr=args.gal_hlr,

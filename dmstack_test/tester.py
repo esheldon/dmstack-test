@@ -32,6 +32,7 @@ def go(
     ntrial,
     output,
     show=False,
+    layout='grid',
     loglevel='info',
 ):
     """
@@ -56,6 +57,7 @@ def go(
     sim_config = {
         'bands': ["i"],
         'psf_type': 'moffat',
+        'layout': layout,
     }
     sim_config = get_sim_config(config=sim_config)
 
