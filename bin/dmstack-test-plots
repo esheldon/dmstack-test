@@ -28,7 +28,10 @@ def get_args():
 def calc_model_fracdiff(*, truth, data, model, fdiff_struct):
 
     n = Namer(front=model)
-    w, = np.where(data[n('flags')] == 0)
+    w, = np.where(
+        (data[n('flags')] == 0) &
+        np.isfinite(data[n('flux')])
+    )
 
     true_imag = truth['true_imag']
     true_flux = 10.0**((true_imag - 30)/(-2.5))
@@ -44,7 +47,7 @@ def calc_model_fracdiff(*, truth, data, model, fdiff_struct):
     predicted_err = data[n('flux_err')][w[ind]].mean()
     fdiff_struct[n('err_fracdiff')] = predicted_err / flux_sig - 1
 
-    fdiff_struct[n('s2n')] = flux_mean/flux_sig
+    fdiff_struct[n('s2n')] = flux_mean/predicted_err
 
 
 def make_fracdiff_struct(data):

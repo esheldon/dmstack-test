@@ -194,7 +194,8 @@ def make_mbobs(*, band_data):
             psf_jac = jacobian.copy()
             psf_jac.set_cen(row=psf_cen[0], col=psf_cen[1])
 
-            psf_noise_fake = 1.0e-6
+            psf_noise_fake = psf_image.max()/50000
+            psf_image += rng.normal(scale=psf_noise_fake, size=psf_image.shape)
             psf_weight = psf_image*0 + 1.0/psf_noise_fake**2
 
             psf_obs = ngmix.Observation(
@@ -307,7 +308,7 @@ def run_ngmix(*, mbobs, model, rng):
             boot.fit_psfs(
                 # 'em3',
                 'coellip3',
-                psf_Tguess,
+                psf_Tguess*rng.uniform(low=0.9, high=1.1),
             )
             scale = mbobs[0][0].jacobian.scale
 
