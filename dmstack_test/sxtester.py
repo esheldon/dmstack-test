@@ -390,20 +390,20 @@ def get_prior(*, model, rng):
 def make_output(*, nband, num, ngmix_model):
 
     if nband == 1:
-        bshape = 1
+        bshape = ()
     else:
         bshape = (nband, 1)
 
     n = Namer(front=ngmix_model)
     dt = [
-        ('psf_flags', 'i4', bshape),
-        ('psf_flux', 'f8', bshape),
-        ('psf_flux_err', 'f8', bshape),
-        ('psf_mag', 'f8', bshape),
+        ('psf_flags', 'i4') + bshape,
+        ('psf_flux', 'f8') + bshape,
+        ('psf_flux_err', 'f8') + bshape,
+        ('psf_mag', 'f8') + bshape,
         (n('flags'), 'i4'),
-        (n('flux'), 'f8', bshape),
-        (n('flux_err'), 'f8', bshape),
-        (n('mag'), 'f8', bshape),
+        (n('flux'), 'f8') + bshape,
+        (n('flux_err'), 'f8') + bshape,
+        (n('mag'), 'f8') + bshape,
     ]
     if ngmix_model == 'bdf':
         dt += ('bdf_fracdev', 'f8'),
