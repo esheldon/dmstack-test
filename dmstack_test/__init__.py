@@ -1,6 +1,7 @@
 # flake8: noqa
 
 from . import tester
+from . import sxtester
 from . import catalogs
 from . import coadds
 from . import exposures

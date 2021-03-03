@@ -18,6 +18,10 @@ def get_args():
 
     parser.add_argument('--layout', default='grid')
 
+    parser.add_argument(
+        '--sx', action='store_true',
+        help='use sx for detection, and only process with ngmix',
+    )
     parser.add_argument('--show', action='store_true')
 
     return parser.parse_args()
@@ -25,7 +29,13 @@ def get_args():
 
 def main():
     args = get_args()
-    dmstack_test.tester.go(
+
+    if not args.sx:
+        func = dmstack_test.tester.go
+    else:
+        func = dmstack_test.sxtester.go
+
+    func(
         seed=args.seed,
         ngmix_model=args.ngmix_model,
         layout=args.layout,
