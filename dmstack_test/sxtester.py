@@ -69,7 +69,7 @@ def go(
 
     # only over ride bands
     sim_config = {
-        'bands': ["i"],
+        'bands': ['r', 'i'],
         'psf_type': 'moffat',
         'layout': layout,
     }
@@ -124,7 +124,7 @@ def go(
         if show:
             show_sim(sim_data['band_data'])
 
-        mbobs = make_mbobs(band_data=sim_data['band_data'])
+        mbobs = make_mbobs(band_data=sim_data['band_data'], rng=rng)
 
         toutput = run_ngmix(
             mbobs=mbobs,
@@ -135,12 +135,24 @@ def go(
 
     truth = np.zeros(1, dtype=[
         ('gal_type', 'S10'),
+        ('true_gmag', 'f8'),
+        ('true_rmag', 'f8'),
         ('true_imag', 'f8'),
+        ('true_zmag', 'f8'),
+        ('true_gmr', 'f8'),
+        ('true_rmi', 'f8'),
+        ('true_imz', 'f8'),
         ('true_hlr', 'f8')
     ])
     truth['gal_type'] = gal_type
+    truth['true_gmag'] = galaxy_catalog.mags['g']
+    truth['true_rmag'] = galaxy_catalog.mags['r']
     truth['true_imag'] = gal_imag
+    truth['true_zmag'] = galaxy_catalog.mags['z']
     truth['true_hlr'] = gal_hlr
+    truth['true_gmr'] = galaxy_catalog.gmr
+    truth['true_rmi'] = galaxy_catalog.rmi
+    truth['true_imz'] = galaxy_catalog.imz
 
     data = eu.numpy_util.combine_arrlist(dlist)
     logger.info('writing: %s' % output)
@@ -172,7 +184,7 @@ def get_jac(wcs, cenx, ceny):
     )
 
 
-def make_mbobs(*, band_data):
+def make_mbobs(*, band_data, rng):
     mbobs = ngmix.MultiBandObsList()
     for band, bdata in band_data.items():
         obslist = ngmix.ObsList()
@@ -290,12 +302,12 @@ def run_ngmix(*, mbobs, model, rng):
 
     n = Namer(front=model)
 
-    prior = get_prior(rng=rng, model=model)
     nband = len(mbobs)
+
+    prior = get_prior(rng=rng, model=model, nband=nband)
     output = make_output(
         nband=nband, num=len(mbobs_list), ngmix_model=model,
     )
-    assert nband == 1, '1 band for now'
 
     for i, mbobs in enumerate(mbobs_list):
         try:
@@ -314,13 +326,12 @@ def run_ngmix(*, mbobs, model, rng):
 
             boot.fit_gal_psf_flux()
             pres = boot.get_psf_flux_result()
-            output['psf_flags'][i] = pres['flags'][0]
-            output['psf_flux'][i] = pres['psf_flux'][0]/scale**2
-            output['psf_flux_err'][i] = pres['psf_flux_err'][0]/scale**2
 
-            output['psf_mag'][i] = (
-                ZERO_POINT - 2.5*np.log10(output['psf_flux'][i])
-            )
+            output['psf_flags'][i, :] = pres['flags']
+            output['psf_flux'][i, :] = pres['psf_flux']/scale**2
+            output['psf_flux_err'][i, :] = pres['psf_flux_err']/scale**2
+
+            output['psf_mag'][i, :] = get_mag(output['psf_flux'][i])
 
             if model == 'bdf':
                 boot.fit_max(
@@ -340,12 +351,13 @@ def run_ngmix(*, mbobs, model, rng):
             output[n('flags')][i] = res['flags']
             if res['flags'] == 0:
                 scale = mbobs[0][0].jacobian.scale
-                output[n('flux')][i] = res['flux'] / scale**2
-                output[n('flux_err')][i] = res['flux_err'] / scale**2
+                output[n('s2n')][i] = res['s2n']
 
-                output[n('mag')][i] = (
-                    ZERO_POINT - 2.5*np.log10(output[n('flux')][i])
-                )
+                output[n('flux')][i, :] = res['flux'] / scale**2
+                output[n('flux_err')][i, :] = res['flux_err'] / scale**2
+                output[n('flux_cov')][i, :, :] = res['flux_cov'] / scale**4
+
+                output[n('mag')][i] = get_mag(output[n('flux')][i])
                 if model == 'bdf':
                     output['bdf_fracdev'][i] = res['pars'][5]
 
@@ -357,11 +369,19 @@ def run_ngmix(*, mbobs, model, rng):
     return output
 
 
-def get_prior(*, model, rng):
+def get_mag(flux):
+    fclip = flux.clip(min=0.001)
+    return ZERO_POINT - 2.5*np.log10(fclip)
+
+
+def get_prior(*, model, rng, nband=None):
     cen_prior = ngmix.priors.CenPrior(0.0, 0.0, 0.2, 0.2, rng=rng)
     g_prior = ngmix.priors.GPriorBA(0.2, rng=rng)
     T_prior = ngmix.priors.FlatPrior(-0.1, 1.e+05, rng=rng)  # noqa
     flux_prior = ngmix.priors.FlatPrior(-1000.0, 1.0e+09, rng=rng)
+
+    if nband is not None:
+        flux_prior = [flux_prior]*nband
 
     if model == 'bdf':
         fracdev_prior = ngmix.priors.Normal(
@@ -392,8 +412,10 @@ def make_output(*, nband, num, ngmix_model):
 
     if nband == 1:
         bshape = ()
+        bcovshape = ()
     else:
-        bshape = (nband, 1)
+        bshape = (nband, )
+        bcovshape = ((nband, nband), )
 
     n = Namer(front=ngmix_model)
     dt = [
@@ -402,8 +424,10 @@ def make_output(*, nband, num, ngmix_model):
         ('psf_flux_err', 'f8') + bshape,
         ('psf_mag', 'f8') + bshape,
         (n('flags'), 'i4'),
+        (n('s2n'), 'f8'),
         (n('flux'), 'f8') + bshape,
         (n('flux_err'), 'f8') + bshape,
+        (n('flux_cov'), 'f8') + bcovshape,
         (n('mag'), 'f8') + bshape,
     ]
     if ngmix_model == 'bdf':
