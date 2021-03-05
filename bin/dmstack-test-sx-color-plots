@@ -89,6 +89,12 @@ def calc_flux_fracdiff(*, truth, data, model, fdiff_struct, band=0):
     fdiff_struct[n('flux_fracdiff_err')] = flux_err/true_flux
 
     predicted_err = flux_errs[w[ind]].mean()
+    # predicted_err = np.median(flux_errs[w[ind]])
+    # predicted_err, _ = eu.stat.sigma_clip(
+    #     flux_errs[w[ind]],
+    # )
+
+    print('pred: %g sig: %g' % (predicted_err, flux_sig))
     fdiff_struct[n('flux_err_fracdiff')] = predicted_err / flux_sig - 1
 
 
