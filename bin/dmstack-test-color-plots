@@ -185,7 +185,7 @@ def do_flux_fracdiff_plots(*, plt, fdiff_struct):
     plt.set(
         ylim=(-0.4, 0.4),
         xlabel='S/N',
-        ylabel=r'$\Delta \mathrm{mag}/\mathrm{mag}$',
+        ylabel=r'$\Delta F/F$',
     )
     plt.axhline(0, color='black')
 
@@ -209,7 +209,7 @@ def do_flux_err_fracdiff_plots(*, plt, fdiff_struct):
     plt.set(
         ylim=(-0.3, 0.3),
         xlabel='S/N',
-        ylabel=r'$\Delta \sigma_{\mathrm{mag}}/\sigma_{\mathrm{mag}}$',
+        ylabel=r'$\Delta \sigma_{F}/\sigma_{F}$',
     )
     plt.axhline(0, color='black')
     for model in MODELS:
