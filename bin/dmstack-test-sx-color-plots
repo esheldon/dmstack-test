@@ -170,7 +170,7 @@ def do_color_err_fracdiff_plots(*, plt, fdiff_struct):
         n = Namer(front=model)
         if n('color_fracdiff') in fdiff_struct.dtype.names:
 
-            print(fdiff_struct[n('color_err_fracdiff')])
+            print('color err fracdiff:', fdiff_struct[n('color_err_fracdiff')])
             plt.plot(
                 fdiff_struct[n('s2n')],
                 fdiff_struct[n('color_err_fracdiff')],
@@ -217,7 +217,7 @@ def do_flux_err_fracdiff_plots(*, plt, fdiff_struct):
         n = Namer(front=model)
         if n('flux_fracdiff') in fdiff_struct.dtype.names:
 
-            print(fdiff_struct[n('flux_err_fracdiff')])
+            print('flux err fracdiff:', fdiff_struct[n('flux_err_fracdiff')])
             plt.plot(
                 fdiff_struct[n('s2n')],
                 fdiff_struct[n('flux_err_fracdiff')],
