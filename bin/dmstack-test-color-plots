@@ -9,6 +9,7 @@ from dmstack_test.util import Namer
 MODELS = [
     'bdf',
     'dev',
+    'exp',
 ]
 
 
@@ -20,7 +21,7 @@ def get_args():
     return parser.parse_args()
 
 
-def calc_model_fracdiff(*, truth, data, model, fdiff_struct):
+def calc_color_fracdiff(*, truth, data, model, fdiff_struct):
 
     n = Namer(front=model)
 
@@ -51,13 +52,44 @@ def calc_model_fracdiff(*, truth, data, model, fdiff_struct):
     rmi_mean, rmi_sig, rmi_err, ind = eu.stat.sigma_clip(
         rmi, get_indices=True, get_err=True,
     )
-    fdiff_struct[n('fracdiff')] = rmi_mean/true_rmi - 1
-    fdiff_struct[n('fracdiff_err')] = rmi_err/true_rmi
+    fdiff_struct[n('color_fracdiff')] = rmi_mean/true_rmi - 1
+    fdiff_struct[n('color_fracdiff_err')] = rmi_err/true_rmi
 
     predicted_err = rmi_errors[ind].mean()
-    fdiff_struct[n('err_fracdiff')] = predicted_err / rmi_sig - 1
+    fdiff_struct[n('color_err_fracdiff')] = predicted_err / rmi_sig - 1
 
     fdiff_struct[n('s2n')] = data[n('s2n')][w[ind]].mean()
+
+
+def calc_flux_fracdiff(*, truth, data, model, fdiff_struct, band=0):
+    """
+    we always just do the first band
+    """
+
+    n = Namer(front=model)
+
+    band_name = truth['bands'][0, band]
+
+    true_mag = truth['true_%smag' % band_name][0]
+    true_flux = 10.0**((true_mag - 30)/(-2.5))
+
+    fluxes = data[n('flux')][:, band]
+    flux_errs = data[n('flux_err')][:, band]
+
+    n = Namer(front=model)
+    w, = np.where(
+        (data[n('flags')] == 0) &
+        np.isfinite(fluxes)
+    )
+
+    flux_mean, flux_sig, flux_err, ind = eu.stat.sigma_clip(
+        fluxes[w], get_indices=True, get_err=True,
+    )
+    fdiff_struct[n('flux_fracdiff')] = flux_mean/true_flux - 1
+    fdiff_struct[n('flux_fracdiff_err')] = flux_err/true_flux
+
+    predicted_err = flux_errs[w[ind]].mean()
+    fdiff_struct[n('flux_err_fracdiff')] = predicted_err / flux_sig - 1
 
 
 def make_fracdiff_struct(data):
@@ -68,9 +100,13 @@ def make_fracdiff_struct(data):
         if n('flags') in data.dtype.names:
             dt += [
                 (n('s2n'), 'f8'),
-                (n('fracdiff'), 'f8'),
-                (n('fracdiff_err'), 'f8'),
-                (n('err_fracdiff'), 'f8'),
+                (n('color_fracdiff'), 'f8'),
+                (n('color_fracdiff_err'), 'f8'),
+                (n('color_err_fracdiff'), 'f8'),
+
+                (n('flux_fracdiff'), 'f8'),
+                (n('flux_fracdiff_err'), 'f8'),
+                (n('flux_err_fracdiff'), 'f8'),
             ]
 
     return np.zeros(1, dtype=dt)
@@ -82,7 +118,13 @@ def get_fracdiff(*, truth, data):
     for model in MODELS:
         n = Namer(front=model)
         if n('flags') in data.dtype.names:
-            calc_model_fracdiff(
+            calc_color_fracdiff(
+                truth=truth,
+                data=data,
+                model=model,
+                fdiff_struct=fdiff_struct,
+            )
+            calc_flux_fracdiff(
                 truth=truth,
                 data=data,
                 model=model,
@@ -92,23 +134,23 @@ def get_fracdiff(*, truth, data):
     return fdiff_struct
 
 
-def do_fracdiff_plots(*, plt, fdiff_struct):
+def do_color_fracdiff_plots(*, plt, fdiff_struct):
     plt.set(
         ylim=(-0.05, 0.05),
-        xlabel='PSF S/N',
+        xlabel='S/N',
         ylabel=r'$\Delta (r-i)/(r-i)$',
     )
     plt.axhline(0, color='black')
 
     for model in MODELS:
         n = Namer(front=model)
-        if n('fracdiff') in fdiff_struct.dtype.names:
+        if n('color_fracdiff') in fdiff_struct.dtype.names:
             label = r'$\mathrm{%s}$' % model.replace('_', r'\_')
 
             plt.errorbar(
                 fdiff_struct[n('s2n')],
-                fdiff_struct[n('fracdiff')],
-                fdiff_struct[n('fracdiff_err')],
+                fdiff_struct[n('color_fracdiff')],
+                fdiff_struct[n('color_fracdiff_err')],
                 linestyle='-',
                 label=label,
             )
@@ -116,22 +158,69 @@ def do_fracdiff_plots(*, plt, fdiff_struct):
     plt.legend()
 
 
-def do_err_fracdiff_plots(*, plt, fdiff_struct):
+def do_color_err_fracdiff_plots(*, plt, fdiff_struct):
     plt.set(
         ylim=(-0.3, 0.3),
-        xlabel='PSF S/N',
+        xlabel='S/N',
         ylabel=r'$\Delta \sigma_{(r-i)}/\sigma_{(r-i)}$',
     )
     plt.axhline(0, color='black')
     for model in MODELS:
 
         n = Namer(front=model)
-        if n('fracdiff') in fdiff_struct.dtype.names:
+        if n('color_fracdiff') in fdiff_struct.dtype.names:
 
-            print(fdiff_struct[n('err_fracdiff')])
+            print(fdiff_struct[n('color_err_fracdiff')])
             plt.plot(
                 fdiff_struct[n('s2n')],
-                fdiff_struct[n('err_fracdiff')],
+                fdiff_struct[n('color_err_fracdiff')],
+                linestyle='-',
+                label=r'$\mathrm{%s}$' % model.replace('_', r'\_'),
+            )
+
+    plt.legend()
+
+
+def do_flux_fracdiff_plots(*, plt, fdiff_struct):
+    plt.set(
+        ylim=(-0.4, 0.4),
+        xlabel='S/N',
+        ylabel=r'$\Delta \mathrm{mag}/\mathrm{mag}$',
+    )
+    plt.axhline(0, color='black')
+
+    for model in MODELS:
+        n = Namer(front=model)
+        if n('flux_fracdiff') in fdiff_struct.dtype.names:
+            label = r'$\mathrm{%s}$' % model.replace('_', r'\_')
+
+            plt.errorbar(
+                fdiff_struct[n('s2n')],
+                fdiff_struct[n('flux_fracdiff')],
+                fdiff_struct[n('flux_fracdiff_err')],
+                linestyle='-',
+                label=label,
+            )
+
+    plt.legend()
+
+
+def do_flux_err_fracdiff_plots(*, plt, fdiff_struct):
+    plt.set(
+        ylim=(-0.3, 0.3),
+        xlabel='S/N',
+        ylabel=r'$\Delta \sigma_{\mathrm{mag}}/\sigma_{\mathrm{mag}}$',
+    )
+    plt.axhline(0, color='black')
+    for model in MODELS:
+
+        n = Namer(front=model)
+        if n('flux_fracdiff') in fdiff_struct.dtype.names:
+
+            print(fdiff_struct[n('flux_err_fracdiff')])
+            plt.plot(
+                fdiff_struct[n('s2n')],
+                fdiff_struct[n('flux_err_fracdiff')],
                 linestyle='-',
                 label=r'$\mathrm{%s}$' % model.replace('_', r'\_'),
             )
@@ -143,8 +232,9 @@ def main():
     args = get_args()
 
     tab = hickory.Table(
-        figsize=(8, 8),
+        figsize=(12, 8),
         nrows=2,
+        ncols=2,
     )
 
     fdiff_list = []
@@ -153,6 +243,7 @@ def main():
         with fitsio.FITS(fname) as fits:
             truth = fits['truth'].read()
             data = fits['model_fits'].read()
+            assert np.unique(truth['bands'][0]).size == 2, 'expected 2 bands'
 
             tfdiff_struct = get_fracdiff(truth=truth, data=data)
             fdiff_list.append(tfdiff_struct)
@@ -175,8 +266,11 @@ def main():
             fdiff_struct = fdiff_struct[s]
             break
 
-    do_fracdiff_plots(plt=tab[0], fdiff_struct=fdiff_struct)
-    do_err_fracdiff_plots(plt=tab[1], fdiff_struct=fdiff_struct)
+    do_color_fracdiff_plots(plt=tab[0, 0], fdiff_struct=fdiff_struct)
+    do_color_err_fracdiff_plots(plt=tab[1, 0], fdiff_struct=fdiff_struct)
+
+    do_flux_fracdiff_plots(plt=tab[0, 1], fdiff_struct=fdiff_struct)
+    do_flux_err_fracdiff_plots(plt=tab[1, 1], fdiff_struct=fdiff_struct)
 
     print('writing:', args.output)
     tab.savefig(args.output)

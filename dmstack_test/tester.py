@@ -134,13 +134,7 @@ def go(
 
         dlist.append(toutput)
 
-    truth = np.zeros(1, dtype=[
-        ('gal_type', 'S10'),
-        ('true_imag', 'f8'), ('true_hlr', 'f8')
-    ])
-    truth['gal_type'] = gal_type
-    truth['true_imag'] = gal_imag
-    truth['true_hlr'] = gal_hlr
+    truth = make_truth(cat=galaxy_catalog, bands=sim_config['bands'])
 
     data = eu.numpy_util.combine_arrlist(dlist)
     logger.info('writing: %s' % output)

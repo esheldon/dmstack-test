@@ -18,7 +18,7 @@ from descwl_shear_sims.sim import (
 from descwl_shear_sims.sim.constants import ZERO_POINT
 
 from .catalogs import ColorGalaxyCatalog
-from .util import Namer
+from .util import Namer, make_truth
 from .vis import show_sim
 
 MEDS_CONFIG = {
@@ -133,26 +133,7 @@ def go(
 
         dlist.append(toutput)
 
-    truth = np.zeros(1, dtype=[
-        ('gal_type', 'S10'),
-        ('true_gmag', 'f8'),
-        ('true_rmag', 'f8'),
-        ('true_imag', 'f8'),
-        ('true_zmag', 'f8'),
-        ('true_gmr', 'f8'),
-        ('true_rmi', 'f8'),
-        ('true_imz', 'f8'),
-        ('true_hlr', 'f8')
-    ])
-    truth['gal_type'] = gal_type
-    truth['true_gmag'] = galaxy_catalog.mags['g']
-    truth['true_rmag'] = galaxy_catalog.mags['r']
-    truth['true_imag'] = gal_imag
-    truth['true_zmag'] = galaxy_catalog.mags['z']
-    truth['true_hlr'] = gal_hlr
-    truth['true_gmr'] = galaxy_catalog.gmr
-    truth['true_rmi'] = galaxy_catalog.rmi
-    truth['true_imz'] = galaxy_catalog.imz
+    truth = make_truth(cat=galaxy_catalog, bands=sim_config['bands'])
 
     data = eu.numpy_util.combine_arrlist(dlist)
     logger.info('writing: %s' % output)
